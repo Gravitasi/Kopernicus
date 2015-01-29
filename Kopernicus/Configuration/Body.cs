@@ -197,28 +197,16 @@ namespace Kopernicus
 				    || template == null)
 				{
 					const double rJool = 6000000.0f;
-
-					// Regenerate the scaled space mesh
-					Mesh bodyMesh = ComputeScaledSpaceMesh(generatedBody);
-
-					// Prepare assignment
-					float scale = (float)(generatedBody.celestialBody.Radius / rJool);
-					generatedBody.scaledVersion.transform.localScale = new Vector3(scale, scale, scale);
 					float rScaled = 1000;
 
-					// Scale down the scaled space if the planet is small enough
-					// (didn't work; the scaled space in R&D wouldn't get scaled up)
-					/*if (scale < 0.01)
-					{
-						rScaled = 100;
-						generatedBody.scaledVersion.transform.localScale *= 10;
-						Utility.ScaleVerts(bodyMesh, 0.1f);
-					}*/
+					// Get Jool scaled space
+					Mesh bodyMesh = ComputeScaledSpaceMesh(generatedBody);
 
-					// Apply mesh to the body
+					// Just use a sphere as initial scaled space
+					float scale = (float)(generatedBody.celestialBody.Radius / rJool);
+					generatedBody.scaledVersion.transform.localScale = new Vector3(scale, scale, scale);
+					generatedBody.scaledVersion.GetComponent<SphereCollider>().radius = rScaled;
 					generatedBody.scaledVersion.GetComponent<MeshFilter>().sharedMesh = bodyMesh;
-					SphereCollider collider = generatedBody.scaledVersion.GetComponent<SphereCollider>();
-					if (collider != null) collider.radius = rScaled;
 
 					// If we have an atmosphere, generate that too
 					if(generatedBody.celestialBody.atmosphere)
@@ -250,13 +238,16 @@ namespace Kopernicus
 			{
 				// We need to get the body for Jool (to steal it's mesh)
 				PSystemBody Jool = Utility.FindBody (PSystemManager.Instance.systemPrefab.rootBody, "Jool");
-				const double rJool = 6000000.0f;
-				const double rScaledJool = 1000.0f;
-				const double rMetersToScaledUnits = (float) (rJool / rScaledJool);
+
+				//const double rJool = 6000000.0f;
+				//const double rScaledJool = 1000.0f;
+				//const double rMetersToScaledUnits = (float) (rJool / rScaledJool);
 
 				// Generate a duplicate of the Jool mesh
 				Mesh mesh = Utility.DuplicateMesh (Jool.scaledVersion.GetComponent<MeshFilter> ().sharedMesh);
 
+				// Don't need this; let KittopiaTech handle scaled space generation entirely
+				/*
 				// Ratio of the body radius and Jool radius
 				double rBodyAndJool = body.celestialBody.Radius/ rJool;
 
@@ -321,6 +312,7 @@ namespace Kopernicus
 					// Cleanup
 					UnityEngine.Object.Destroy(pqsVersionGameObject);
 				}
+				 */
 
 				// Return the generated scaled space mesh
 				return mesh;
