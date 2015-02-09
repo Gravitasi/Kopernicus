@@ -208,6 +208,7 @@ namespace Kopernicus
 					float scale = (float)(generatedBody.celestialBody.Radius / rJool);
 					generatedBody.scaledVersion.transform.localScale = new Vector3(scale, scale, scale);
 
+					/*
 					// Attempt to load a cached version of the scale space
 					string CacheDirectory = KSPUtil.ApplicationRootPath + ScaledSpaceCacheDirectory;
 					string CacheFile = CacheDirectory + "/" + generatedBody.name + ".bin";
@@ -222,10 +223,13 @@ namespace Kopernicus
 					else 
 					{
 						Debug.Log ("[Kopernicus]: Body.PostApply(ConfigNode): Generating scaled space mesh: " + generatedBody.name);
+					*/
 						Mesh scaledVersionMesh = ComputeScaledSpaceMesh(generatedBody);
 						generatedBody.scaledVersion.GetComponent<MeshFilter> ().sharedMesh = scaledVersionMesh;
+					/*
 						Utility.SerializeMesh (scaledVersionMesh, CacheFile);
 					}
+					*/
 
 					// Apply mesh to the body
 					SphereCollider collider = generatedBody.scaledVersion.GetComponent<SphereCollider>();
