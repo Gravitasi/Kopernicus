@@ -33,6 +33,8 @@ using System.Linq;
 
 using UnityEngine;
 
+using System.IO;
+
 // Disable the "private fields `` is assigned but its value is never used warning"
 #pragma warning disable 0414
 
@@ -43,6 +45,9 @@ namespace Kopernicus
 		[RequireConfigType(ConfigType.Node)]
 		public class Body : IParserEventSubscriber
 		{
+			// Path of the plugin (will eventually not matter much)
+			private const string ScaledSpaceCacheDirectory = "GameData/Kopernicus/Cache";
+
 			// Body we are trying to edit
 			public PSystemBody generatedBody { get; private set; }
 
@@ -196,17 +201,35 @@ namespace Kopernicus
 				if (((template != null) && (Math.Abs(template.radius - generatedBody.celestialBody.Radius) > 1.0 || template.type != scaledVersion.type.value))
 				    || template == null)
 				{
-					const double rJool = 6000000.0f;
-					float rScaled = 1000;
+					const double rJool = 6000000.0;
+					const float  rScaled = 1000.0f;
 
-					// Get Jool scaled space
-					Mesh bodyMesh = ComputeScaledSpaceMesh(generatedBody);
-
-					// Just use a sphere as initial scaled space
+					// Compute scale between Jool and this body
 					float scale = (float)(generatedBody.celestialBody.Radius / rJool);
 					generatedBody.scaledVersion.transform.localScale = new Vector3(scale, scale, scale);
-					generatedBody.scaledVersion.GetComponent<SphereCollider>().radius = rScaled;
-					generatedBody.scaledVersion.GetComponent<MeshFilter>().sharedMesh = bodyMesh;
+
+					// Attempt to load a cached version of the scale space
+					string CacheDirectory = KSPUtil.ApplicationRootPath + ScaledSpaceCacheDirectory;
+					string CacheFile = CacheDirectory + "/" + generatedBody.name + ".bin";
+					Directory.CreateDirectory (CacheDirectory);
+					if (File.Exists (CacheFile)) 
+					{
+						Debug.Log ("[Kopernicus]: Body.PostApply(ConfigNode): Loading cached scaled space mesh: " + generatedBody.name);
+						generatedBody.scaledVersion.GetComponent<MeshFilter> ().sharedMesh = Utility.DeserializeMesh (CacheFile);
+					} 
+
+					// Otherwise we have to generate the mesh
+					else 
+					{
+						Debug.Log ("[Kopernicus]: Body.PostApply(ConfigNode): Generating scaled space mesh: " + generatedBody.name);
+						Mesh scaledVersionMesh = ComputeScaledSpaceMesh(generatedBody);
+						generatedBody.scaledVersion.GetComponent<MeshFilter> ().sharedMesh = scaledVersionMesh;
+						Utility.SerializeMesh (scaledVersionMesh, CacheFile);
+					}
+
+					// Apply mesh to the body
+					SphereCollider collider = generatedBody.scaledVersion.GetComponent<SphereCollider>();
+					if (collider != null) collider.radius = rScaled;
 
 					// If we have an atmosphere, generate that too
 					if(generatedBody.celestialBody.atmosphere)
@@ -239,9 +262,8 @@ namespace Kopernicus
 				// We need to get the body for Jool (to steal it's mesh)
 				PSystemBody Jool = Utility.FindBody (PSystemManager.Instance.systemPrefab.rootBody, "Jool");
 
-				//const double rJool = 6000000.0f;
-				//const double rScaledJool = 1000.0f;
-				//const double rMetersToScaledUnits = (float) (rJool / rScaledJool);
+				const double rScaledJool = 1000.0f;
+			    double rMetersToScaledUnits = (float) (rScaledJool / body.celestialBody.Radius);
 
 				// Generate a duplicate of the Jool mesh
 				Mesh mesh = Utility.DuplicateMesh (Jool.scaledVersion.GetComponent<MeshFilter> ().sharedMesh);
@@ -283,21 +305,20 @@ namespace Kopernicus
 							// Build the vertex data object for the PQS mods
 							PQS.VertexBuildData vertex = new PQS.VertexBuildData();
 							vertex.directionFromCenter = direction;
-							vertex.vertHeight = rBodyAndJool * rScaledJool;
+
+							vertex.vertHeight = body.celestialBody.Radius;
 							vertex.u = uv.x;
 							vertex.v = uv.y;
 							
 							// Build from the PQS
 							foreach(PQSMod mod in mods)
 								mod.OnVertexBuildHeight(vertex);
-
-							Vector3 offset = direction * (float)((vertex.vertHeight / rBodyAndJool) / rMetersToScaledUnits);
-
 							// Adjust the displacement
-							vertices[i] += offset;
+							vertices [i] = direction * (float)(vertex.vertHeight * rMetersToScaledUnits);
 						}
 						mesh.vertices = vertices;
 						mesh.RecalculateNormals();
+						mesh.RecalculateBounds ();
 					}
 
 					// Otherwise log an error
